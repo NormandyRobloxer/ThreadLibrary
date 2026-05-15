@@ -3,8 +3,8 @@ local Thread = {}
 Thread._threads = {}
 
 function Thread.new(name, fn)
-	assert(type(name) == "string")
-	assert(type(fn) == "function")
+	assert(type(name) == "string", "Name must be a string")
+	assert(type(fn) == "function", "Function must be a function")
 
 	if Thread._threads[name] then
 		error("thread already exists")
@@ -13,7 +13,8 @@ function Thread.new(name, fn)
 	Thread._threads[name] = {
 		Name = name,
 		Function = fn,
-		Running = false
+		Running = false,
+		ThreadObject = nil
 	}
 end
 
@@ -23,9 +24,10 @@ function Thread.start(name, ...)
 
 	t.Running = true
 
-	task.spawn(function(...)
+	t.ThreadObject = task.spawn(function(...)
 		t.Function(...)
 		t.Running = false
+		t.ThreadObject = nil
 	end, ...)
 end
 
@@ -34,13 +36,18 @@ function Thread.stop(name)
 	if not t then return end
 
 	t.Running = false
+
+	if t.ThreadObject then
+		pcall(task.cancel, t.ThreadObject)
+		t.ThreadObject = nil
+	end
 end
 
 function Thread.join(name)
 	local t = Thread._threads[name]
 	if not t then return end
 
-	while t.Running do
+	while t.Running and t.ThreadObject do
 		task.wait()
 	end
 end
@@ -53,7 +60,10 @@ function Thread.remove(name)
 	local t = Thread._threads[name]
 	if not t then return end
 
-	t.Running = false
+	if t.Running then
+		Thread.stop(name)
+	end
+	
 	Thread._threads[name] = nil
 end
 
